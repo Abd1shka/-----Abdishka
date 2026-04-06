@@ -2,103 +2,139 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>BaaS</title>
+    <title>Cloud Chat — Auth & Live</title>
     <style>
         body { font-family: 'Inter', sans-serif; background: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { width: 100%; max-width: 500px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .container { width: 100%; max-width: 500px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
         input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button#mainBtn { background: #007bff; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; font-weight: 600; cursor: pointer; transition: 0.3s; }
+        button { background: #007bff; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; font-weight: 600; cursor: pointer; transition: 0.3s; margin-top: 10px; }
+        button:hover { opacity: 0.9; }
+        button.secondary { background: #6c757d; }
+        
         .post { background: #fff; border: 1px solid #eaeaea; padding: 15px; margin-top: 15px; border-radius: 8px; width: 100%; max-width: 500px; position: relative; }
-        .like-btn { cursor: pointer; border: none; background: #f8f9fa; padding: 5px 12px; border-radius: 20px; font-size: 14px; transition: 0.2s; }
-        .like-btn:hover { background: #e2e6ea; }
         .time { font-size: 11px; color: #999; float: right; }
+        .hidden { display: none; }
+        .user-info { font-size: 14px; margin-bottom: 10px; color: #555; display: flex; justify-content: space-between; align-items: center; }
+        .logout-btn { width: auto; padding: 5px 10px; font-size: 12px; margin: 0; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h3>Панель управления данными</h3>
-        <input type="text" id="name" placeholder="Имя профиля">
-        <input type="email" id="email" placeholder="Рабочий Email">
-        <button id="mainBtn">Опубликовать в облако</button>
+    <div id="auth-section" class="container">
+        <h3>Вход в облачный чат</h3>
+        <input type="email" id="auth-email" placeholder="Email">
+        <input type="password" id="auth-pass" placeholder="Пароль">
+        <button id="loginBtn">Войти</button>
+        <button id="regBtn" class="secondary">Зарегистрироваться</button>
     </div>
 
-    <div id="feed" style="width: 100%; max-width: 500px;"></div>
+    <div id="chat-section" class="hidden">
+        <div class="container">
+            <div class="user-info">
+                <span id="current-user-display"></span>
+                <button id="logoutBtn" class="secondary logout-btn">Выйти</button>
+            </div>
+            <hr>
+            <h3>Написать сообщение</h3>
+            <input type="text" id="msg-text" placeholder="Ваше сообщение...">
+            <button id="sendBtn">Отправить в облако</button>
+        </div>
+
+        <div id="feed" style="width: 100%; max-width: 500px;"></div>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
         import { 
-            getFirestore, collection, addDoc, query, orderBy, onSnapshot, 
-            serverTimestamp, updateDoc, doc, increment 
+            getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment 
         } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+        import { 
+            getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut 
+        } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
 
-        // КОНФИГУРАЦИЯ
         const firebaseConfig = {
             apiKey: "AIzaSyBgUuXR8Txafc_qA-rpdSzKn3326SIfxsHU",
             authDomain: "qazaq-a872e.firebaseapp.com",
             projectId: "qazaq-a872e",
             storageBucket: "qazaq-a872e.firebasestorage.app",
             messagingSenderId: "47025480090",
-            appId: "1:47025480090:web:3dd74ff29bc0149f39a23",
-            measurementId: "G-9TE97WMPB9"
+            appId: "1:47025480090:web:3dd74ff29bc0149f39a23"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app);
 
-        // МЕТОД: АТОМАРНОЕ ОБНОВЛЕНИЕ (LIKES)
-        window.processLike = async (id) => {
-            const docRef = doc(db, "requests", id);
-            try {
-                await updateDoc(docRef, { likes: increment(1) });
-            } catch (e) {
-                console.error("Validation Error:", e.message);
-            }
+        // --- ЛОГИКА АВТОРИЗАЦИИ ---
+
+        // Регистрация
+        document.getElementById('regBtn').onclick = () => {
+            const email = document.getElementById('auth-email').value;
+            const pass = document.getElementById('auth-pass').value;
+            createUserWithEmailAndPassword(auth, email, pass)
+                .catch(err => alert("Ошибка регистрации: " + err.message));
         };
 
-        // МЕТОД: ЗАПИСЬ С ВАЛИДАЦИЕЙ
-        document.getElementById('mainBtn').onclick = async () => {
-            const btn = document.getElementById('mainBtn');
-            const nameInput = document.getElementById('name');
-            const emailInput = document.getElementById('email');
-
-            btn.disabled = true;
-            try {
-                await addDoc(collection(db, "requests"), {
-                    name: nameInput.value,
-                    email: emailInput.value,
-                    likes: 0,
-                    timestamp: serverTimestamp()
-                });
-                emailInput.value = ""; 
-            } catch (e) {
-                alert("Ошибка безопасности: Данные отклонены сервером.");
-            }
-            btn.disabled = false;
+        // Вход
+        document.getElementById('loginBtn').onclick = () => {
+            const email = document.getElementById('auth-email').value;
+            const pass = document.getElementById('auth-pass').value;
+            signInWithEmailAndPassword(auth, email, pass)
+                .catch(err => alert("Ошибка входа: " + err.message));
         };
 
-        // МЕТОД: REAL-TIME СИНХРОНИЗАЦИЯ
-        const q = query(collection(db, "requests"), orderBy("timestamp", "desc"));
-        onSnapshot(q, (snapshot) => {
-            const feed = document.getElementById('feed');
-            feed.innerHTML = "";
-            
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                const time = data.timestamp?.toDate().toLocaleTimeString() || '...';
-                
-                feed.innerHTML += `
-                    <div class="post">
-                        <span class="time">${time}</span>
-                        <b>${data.name}</b>
-                        <p style="margin: 5px 0;">${data.email}</p>
-                        <button class="like-btn" onclick="processLike('${doc.id}')">
-                            👍 ${data.likes || 0}
-                        </button>
-                    </div>
-                `;
-            });
+        // Выход
+        document.getElementById('logoutBtn').onclick = () => signOut(auth);
+
+        // Слушатель состояния пользователя
+        onAuthStateChanged(auth, (user) => {
+            const authSec = document.getElementById('auth-section');
+            const chatSec = document.getElementById('chat-section');
+            if (user) {
+                authSec.classList.add('hidden');
+                chatSec.classList.remove('hidden');
+                document.getElementById('current-user-display').innerText = user.email;
+                loadMessages(); // Загружаем чат только если зашли
+            } else {
+                authSec.classList.remove('hidden');
+                chatSec.classList.add('hidden');
+            }
         });
+
+        // --- ЛОГИКА ЧАТА ---
+
+        // Отправка сообщения
+        document.getElementById('sendBtn').onclick = async () => {
+            const text = document.getElementById('msg-text').value;
+            if(!text) return;
+
+            await addDoc(collection(db, "chat_messages"), {
+                user: auth.currentUser.email,
+                text: text,
+                timestamp: serverTimestamp()
+            });
+            document.getElementById('msg-text').value = "";
+        };
+
+        // Живая лента (onSnapshot + orderBy)
+        function loadMessages() {
+            const q = query(collection(db, "chat_messages"), orderBy("timestamp", "desc"));
+            onSnapshot(q, (snapshot) => {
+                const feed = document.getElementById('feed');
+                feed.innerHTML = "";
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const time = data.timestamp?.toDate().toLocaleTimeString() || '...';
+                    feed.innerHTML += `
+                        <div class="post">
+                            <span class="time">${time}</span>
+                            <b>${data.user}</b>
+                            <p>${data.text}</p>
+                        </div>
+                    `;
+                });
+            });
+        }
     </script>
 </body>
 </html>
