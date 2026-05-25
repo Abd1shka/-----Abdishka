@@ -17,6 +17,58 @@
         .user-info { font-size: 14px; margin-bottom: 10px; color: #555; display: flex; justify-content: space-between; align-items: center; }
         .logout-btn { width: auto; padding: 5px 10px; font-size: 12px; margin: 0; }
         .author { color: #007bff; font-weight: bold; }
+        
+        /* Стили для монитора статусов */
+        .status-monitor {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .status-monitor h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 16px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .online-users {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .online-user {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .online-dot {
+            width: 8px;
+            height: 8px;
+            background: #4caf50;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .user-count {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .no-users {
+            color: #999;
+            font-style: italic;
+            padding: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -30,6 +82,17 @@
     </div>
 
     <div id="chat-section" class="hidden">
+        <!-- Монитор статусов -->
+        <div class="status-monitor">
+            <h3>📊 Монитор статусов</h3>
+            <div class="user-count">
+                Онлайн пользователей: <strong id="online-count">0</strong>
+            </div>
+            <div class="online-users" id="online-users-list">
+                <div class="no-users">Нет пользователей онлайн</div>
+            </div>
+        </div>
+
         <div class="container">
             <div class="user-info">
                 <span>Вы вошли как: <b id="current-user-display"></b></span>
@@ -46,7 +109,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
         import { 
-            getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp 
+            getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, setDoc, deleteDoc, where 
         } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
         // ВАШИ КЛЮЧИ
@@ -62,27 +125,144 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+        // --- УПРАВЛЕНИЕ СТАТУСАМИ ОНЛАЙН ---
+        let currentUserDocRef = null;
+        let heartbeatInterval = null;
+
+        // Функция установки статуса онлайн
+        async function setUserOnline(nickname, email) {
+            try {
+                const userId = nickname.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+                currentUserDocRef = doc(db, "online_users", userId);
+                
+                await setDoc(currentUserDocRef, {
+                    nickname: nickname,
+                    email: email,
+                    lastSeen: serverTimestamp(),
+                    status: 'online'
+                });
+                
+                // Запускаем heartbeat для поддержания статуса онлайн
+                startHeartbeat(userId, nickname, email);
+            } catch (e) {
+                console.error("Ошибка установки статуса онлайн:", e);
+            }
+        }
+
+        // Heartbeat для обновления временной метки
+        function startHeartbeat(userId, nickname, email) {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            
+            heartbeatInterval = setInterval(async () => {
+                try {
+                    const userRef = doc(db, "online_users", userId);
+                    await setDoc(userRef, {
+                        nickname: nickname,
+                        email: email,
+                        lastSeen: serverTimestamp(),
+                        status: 'online'
+                    }, { merge: true });
+                } catch (e) {
+                    console.error("Ошибка heartbeat:", e);
+                }
+            }, 30000); // Обновление каждые 30 секунд
+        }
+
+        // Функция выхода из системы
+        async function setUserOffline() {
+            if (currentUserDocRef) {
+                try {
+                    await deleteDoc(currentUserDocRef);
+                } catch (e) {
+                    console.error("Ошибка удаления статуса онлайн:", e);
+                }
+            }
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+            currentUserDocRef = null;
+        }
+
+        // Мониторинг онлайн пользователей
+        function monitorOnlineUsers() {
+            const onlineUsersCollection = collection(db, "online_users");
+            const q = query(onlineUsersCollection, where("status", "==", "online"));
+            
+            onSnapshot(q, (snapshot) => {
+                const usersList = document.getElementById('online-users-list');
+                const onlineCount = document.getElementById('online-count');
+                const currentNick = localStorage.getItem('chat_nick');
+                
+                // Фильтруем старые записи (старше 1 минуты)
+                const now = new Date();
+                const activeUsers = [];
+                
+                snapshot.forEach((doc) => {
+                    const userData = doc.data();
+                    const lastSeen = userData.lastSeen?.toDate();
+                    
+                    if (lastSeen) {
+                        const diffSeconds = (now - lastSeen) / 1000;
+                        if (diffSeconds < 60) { // Пользователь активен в течение последней минуты
+                            activeUsers.push(userData);
+                        }
+                    }
+                });
+                
+                // Обновляем счетчик
+                onlineCount.textContent = activeUsers.length;
+                
+                // Отображаем список онлайн пользователей
+                if (activeUsers.length === 0) {
+                    usersList.innerHTML = '<div class="no-users">Нет пользователей онлайн</div>';
+                } else {
+                    usersList.innerHTML = activeUsers.map(user => `
+                        <div class="online-user">
+                            <span class="online-dot"></span>
+                            ${user.nickname}${user.nickname === currentNick ? ' (вы)' : ''}
+                        </div>
+                    `).join('');
+                }
+            });
+        }
+
+        // Обработка закрытия страницы
+        window.addEventListener('beforeunload', async () => {
+            await setUserOffline();
+        });
+
+        // Обработка ухода со страницы
+        window.addEventListener('pagehide', async () => {
+            await setUserOffline();
+        });
+
         // --- УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ И ВХОДОМ ---
         const authSec = document.getElementById('auth-section');
         const chatSec = document.getElementById('chat-section');
         const nickDisplay = document.getElementById('current-user-display');
 
         // Проверяем, есть ли уже сохраненный пользователь при загрузке страницы
-        function checkLogin() {
+        async function checkLogin() {
             const savedNick = localStorage.getItem('chat_nick');
             if (savedNick) {
                 authSec.classList.add('hidden');
                 chatSec.classList.remove('hidden');
                 nickDisplay.innerText = savedNick;
+                
+                const savedEmail = localStorage.getItem('chat_email');
+                await setUserOnline(savedNick, savedEmail);
+                monitorOnlineUsers();
                 loadMessages();
             } else {
                 authSec.classList.remove('hidden');
                 chatSec.classList.add('hidden');
+                await setUserOffline();
             }
         }
 
         // Кнопка входа
-        document.getElementById('loginBtn').onclick = () => {
+        document.getElementById('loginBtn').onclick = async () => {
             const nick = document.getElementById('auth-nick').value.trim();
             const email = document.getElementById('auth-email').value.trim();
             
@@ -94,11 +274,12 @@
             // Сохраняем в память браузера
             localStorage.setItem('chat_nick', nick);
             localStorage.setItem('chat_email', email);
-            checkLogin();
+            await checkLogin();
         };
 
         // Кнопка выхода
-        document.getElementById('logoutBtn').onclick = () => {
+        document.getElementById('logoutBtn').onclick = async () => {
+            await setUserOffline();
             localStorage.removeItem('chat_nick');
             localStorage.removeItem('chat_email');
             checkLogin();
