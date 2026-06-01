@@ -1,335 +1,170 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Cloud Chat — Simple Login</title>
-    <style>
-        body { font-family: 'Inter', sans-serif; background: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { width: 100%; max-width: 500px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; font-weight: 600; cursor: pointer; transition: 0.3s; margin-top: 10px; }
-        button:hover { opacity: 0.9; }
-        button.secondary { background: #dc3545; }
-        
-        .post { background: #fff; border: 1px solid #eaeaea; padding: 15px; margin-top: 15px; border-radius: 8px; width: 100%; max-width: 500px; position: relative; }
-        .time { font-size: 11px; color: #999; float: right; }
-        .hidden { display: none; }
-        .user-info { font-size: 14px; margin-bottom: 10px; color: #555; display: flex; justify-content: space-between; align-items: center; }
-        .logout-btn { width: auto; padding: 5px 10px; font-size: 12px; margin: 0; }
-        .author { color: #007bff; font-weight: bold; }
-        
-        /* Стили для монитора статусов */
-        .status-monitor {
-            width: 100%;
-            max-width: 500px;
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
-        }
-        .status-monitor h3 {
-            margin-top: 0;
-            color: #333;
-            font-size: 16px;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 10px;
-        }
-        .online-users {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        .online-user {
-            background: #e8f5e9;
-            color: #2e7d32;
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .online-dot {
-            width: 8px;
-            height: 8px;
-            background: #4caf50;
-            border-radius: 50%;
-            display: inline-block;
-        }
-        .user-count {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-        .no-users {
-            color: #999;
-            font-style: italic;
-            padding: 10px 0;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Монитор статусов на Supabase</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #eef2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 24px;
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 24px;
+            box-sizing: border-box;
+        }
+        h2 {
+            margin-top: 0;
+            font-size: 20px;
+            font-weight: 700;
+            color: #000;
+            margin-bottom: 16px;
+        }
+        #myInfo {
+            font-size: 15px;
+            color: #333;
+            margin-bottom: 16px;
+        }
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .btn {
+            border: 1.5px solid #000;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+        /* Цвета кнопок из примера */
+        .btn-green { background-color: #28a745; color: white; }
+        .btn-yellow { background-color: #ffc107; color: black; }
+        .btn-teal { background-color: #17a2b8; color: white; }
+        .btn-grey { background-color: #6c757d; color: white; }
+
+        /* Стили списка группы */
+        .user-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .user-item:last-child {
+            border-bottom: none;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+        strong {
+            font-size: 16px;
+            color: #111;
+        }
+        small {
+            font-size: 13px;
+        }
+    </style>
 </head>
 <body>
 
-    <div id="auth-section" class="container">
-        <h3>Добро пожаловать в чат</h3>
-        <p style="font-size: 13px; color: #666;">Введите данные, чтобы начать общение</p>
-        <input type="text" id="auth-nick" placeholder="Ваш Никнейм (обязательно)">
-        <input type="email" id="auth-email" placeholder="Ваш Email (опционально)">
-        <button id="loginBtn">Войти в чат</button>
-    </div>
+    <div class="card">
+        <h2>Мой профиль</h2>
+        <div id="myInfo">Загрузка профиля...</div>
+        <div class="btn-grid">
+            <button class="btn btn-green" onclick="changeStatus('📚 Учусь', '#28a745')">📚 Учусь</button>
+            <button class="btn btn-yellow" onclick="changeStatus('☕ Кофе', '#ffc107')">☕ Кофе</button>
+            <button class="btn btn-teal" onclick="changeStatus('🎮 В игре', '#17a2b8')">🎮 В игре</button>
+            <button class="btn btn-grey" onclick="changeStatus('🏠 Дома', '#6c757d')">🏠 Дома</button>
+        </div>
+    </div>
 
-    <div id="chat-section" class="hidden">
-        <!-- Монитор статусов -->
-        <div class="status-monitor">
-            <h3>📊 Монитор статусов</h3>
-            <div class="user-count">
-                Онлайн пользователей: <strong id="online-count">0</strong>
-            </div>
-            <div class="online-users" id="online-users-list">
-                <div class="no-users">Нет пользователей онлайн</div>
-            </div>
-        </div>
+    <div class="card">
+        <h2>Монитор группы</h2>
+        <div id="groupList">
+            </div>
+    </div>
 
-        <div class="container">
-            <div class="user-info">
-                <span>Вы вошли как: <b id="current-user-display"></b></span>
-                <button id="logoutBtn" class="secondary logout-btn">Выйти</button>
-            </div>
-            <hr>
-            <input type="text" id="msg-text" placeholder="Напишите что-нибудь...">
-            <button id="sendBtn">Отправить сообщение</button>
-        </div>
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm' [cite: 27, 28]
 
-        <div id="feed" style="width: 100%; max-width: 500px;"></div>
-    </div>
+        // ВАЖНО: Замените эти данные на ваши собственные ключи из настроек Supabase 
+        const URL = 'https://supabase.com/dashboard/project/uvwbzrgqpexcinsdzgem/editor/33658?schema=public'; [cite: 27, 28]
+        const KEY = 'sb_publishable_9pjLoiR04_n2beuU9r_IUQ_vre2CbJA'; [cite: 27, 28]
+        const supabase = createClient(URL, KEY); [cite: 27, 28]
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
-        import { 
-            getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, setDoc, deleteDoc, where 
-        } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+        // ВАЖНО: Вставьте сюда ваш длинный id, скопированный из таблицы profiles [cite: 13, 27, 28]
+        const MY_ID = '{"idx":0,"id":"e05b34b3-12d9-44e0-9b65-8e94949d7cf6","user name":"Abdi","status":"Online"}'; [cite: 27, 28]
 
-        // ВАШИ КЛЮЧИ
-        const firebaseConfig = {
-            apiKey: "AIzaSyBgUuXR8Txafc_qA-rpdSzKn3326SIfxsHU",
-            authDomain: "qazaq-a872e.firebaseapp.com",
-            projectId: "qazaq-a872e",
-            storageBucket: "qazaq-a872e.firebasestorage.app",
-            messagingSenderId: "47025480090",
-            appId: "1:47025480090:web:3dd74ff29bc0149f39a23"
-        };
+        // Функция смены статуса (доступна глобально через объект window) 
+        window.changeStatus = async (text, color) => {
+            const { error } = await supabase [cite: 27, 28]
+                .from('profiles') [cite: 27, 28]
+                .update({ status: text, color: color }) // Меняем текст статуса и цвет точки 
+                .eq('id', MY_ID); [cite: 27, 28]
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+            if (error) {
+                alert("Ошибка! Проверьте RLS политики в Supabase."); [cite: 27, 28]
+                console.error(error); [cite: 27, 28]
+            } else {
+                fetchGroup(); // Сразу обновляем интерфейс локально 
+            }
+        };
 
-        // --- УПРАВЛЕНИЕ СТАТУСАМИ ОНЛАЙН ---
-        let currentUserDocRef = null;
-        let heartbeatInterval = null;
+        // Функция получения списка всей группы 
+        async function fetchGroup() {
+            const { data, error } = await supabase [cite: 27, 28]
+                .from('profiles') [cite: 27, 28]
+                .select('*') [cite: 27, 28]
+                .order('username', { ascending: true }); // Сортировка по алфавиту 
 
-        // Функция установки статуса онлайн
-        async function setUserOnline(nickname, email) {
-            try {
-                const userId = nickname.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-                currentUserDocRef = doc(db, "online_users", userId);
-                
-                await setDoc(currentUserDocRef, {
-                    nickname: nickname,
-                    email: email,
-                    lastSeen: serverTimestamp(),
-                    status: 'online'
-                });
-                
-                // Запускаем heartbeat для поддержания статуса онлайн
-                startHeartbeat(userId, nickname, email);
-            } catch (e) {
-                console.error("Ошибка установки статуса онлайн:", e);
-            }
-        }
+            if (error) return console.error(error); [cite: 27, 28]
 
-        // Heartbeat для обновления временной метки
-        function startHeartbeat(userId, nickname, email) {
-            if (heartbeatInterval) clearInterval(heartbeatInterval);
-            
-            heartbeatInterval = setInterval(async () => {
-                try {
-                    const userRef = doc(db, "online_users", userId);
-                    await setDoc(userRef, {
-                        nickname: nickname,
-                        email: email,
-                        lastSeen: serverTimestamp(),
-                        status: 'online'
-                    }, { merge: true });
-                } catch (e) {
-                    console.error("Ошибка heartbeat:", e);
-                }
-            }, 30000); // Обновление каждые 30 секунд
-        }
+            // Рендеринг элементов списка
+            const list = document.getElementById('groupList'); [cite: 27, 28]
+            list.innerHTML = data.map(user => `
+                <div class="user-item">
+                    <div class="status-dot" style="background: ${user.color || '#ccc'}"></div>
+                    <div style="flex-grow: 1;">
+                        <strong>${user.username}</strong><br>
+                        <small style="color: #666;">${user.status || 'Статус не задан'}</small>
+                    </div>
+                </div>
+            `).join(''); [cite: 27, 28]
 
-        // Функция выхода из системы
-        async function setUserOffline() {
-            if (currentUserDocRef) {
-                try {
-                    await deleteDoc(currentUserDocRef);
-                } catch (e) {
-                    console.error("Ошибка удаления статуса онлайн:", e);
-                }
-            }
-            if (heartbeatInterval) {
-                clearInterval(heartbeatInterval);
-                heartbeatInterval = null;
-            }
-            currentUserDocRef = null;
-        }
+            // Обновление приветствия в верхней карточке "Мой профиль"
+            const me = data.find(u => u.id === MY_ID); [cite: 27, 28]
+            if (me) document.getElementById('myInfo').innerText = `Вы зашли как: ${me.username}`; [cite: 27, 28]
+        }
 
-        // Мониторинг онлайн пользователей
-        function monitorOnlineUsers() {
-            const onlineUsersCollection = collection(db, "online_users");
-            const q = query(onlineUsersCollection, where("status", "==", "online"));
-            
-            onSnapshot(q, (snapshot) => {
-                const usersList = document.getElementById('online-users-list');
-                const onlineCount = document.getElementById('online-count');
-                const currentNick = localStorage.getItem('chat_nick');
-                
-                // Фильтруем старые записи (старше 1 минуты)
-                const now = new Date();
-                const activeUsers = [];
-                
-                snapshot.forEach((doc) => {
-                    const userData = doc.data();
-                    const lastSeen = userData.lastSeen?.toDate();
-                    
-                    if (lastSeen) {
-                        const diffSeconds = (now - lastSeen) / 1000;
-                        if (diffSeconds < 60) { // Пользователь активен в течение последней минуты
-                            activeUsers.push(userData);
-                        }
-                    }
-                });
-                
-                // Обновляем счетчик
-                onlineCount.textContent = activeUsers.length;
-                
-                // Отображаем список онлайн пользователей
-                if (activeUsers.length === 0) {
-                    usersList.innerHTML = '<div class="no-users">Нет пользователей онлайн</div>';
-                } else {
-                    usersList.innerHTML = activeUsers.map(user => `
-                        <div class="online-user">
-                            <span class="online-dot"></span>
-                            ${user.nickname}${user.nickname === currentNick ? ' (вы)' : ''}
-                        </div>
-                    `).join('');
-                }
-            });
-        }
+        // Вызываем функцию один раз при загрузке страницы 
+        fetchGroup();
 
-        // Обработка закрытия страницы
-        window.addEventListener('beforeunload', async () => {
-            await setUserOffline();
-        });
-
-        // Обработка ухода со страницы
-        window.addEventListener('pagehide', async () => {
-            await setUserOffline();
-        });
-
-        // --- УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ И ВХОДОМ ---
-        const authSec = document.getElementById('auth-section');
-        const chatSec = document.getElementById('chat-section');
-        const nickDisplay = document.getElementById('current-user-display');
-
-        // Проверяем, есть ли уже сохраненный пользователь при загрузке страницы
-        async function checkLogin() {
-            const savedNick = localStorage.getItem('chat_nick');
-            if (savedNick) {
-                authSec.classList.add('hidden');
-                chatSec.classList.remove('hidden');
-                nickDisplay.innerText = savedNick;
-                
-                const savedEmail = localStorage.getItem('chat_email');
-                await setUserOnline(savedNick, savedEmail);
-                monitorOnlineUsers();
-                loadMessages();
-            } else {
-                authSec.classList.remove('hidden');
-                chatSec.classList.add('hidden');
-                await setUserOffline();
-            }
-        }
-
-        // Кнопка входа
-        document.getElementById('loginBtn').onclick = async () => {
-            const nick = document.getElementById('auth-nick').value.trim();
-            const email = document.getElementById('auth-email').value.trim();
-            
-            if (!nick) {
-                alert("Пожалуйста, введите Никнейм!");
-                return;
-            }
-
-            // Сохраняем в память браузера
-            localStorage.setItem('chat_nick', nick);
-            localStorage.setItem('chat_email', email);
-            await checkLogin();
-        };
-
-        // Кнопка выхода
-        document.getElementById('logoutBtn').onclick = async () => {
-            await setUserOffline();
-            localStorage.removeItem('chat_nick');
-            localStorage.removeItem('chat_email');
-            checkLogin();
-        };
-
-        // Запускаем проверку при старте
-        checkLogin();
-
-        // --- ЛОГИКА ЧАТА ---
-
-        // Отправка
-        document.getElementById('sendBtn').onclick = async () => {
-            const text = document.getElementById('msg-text').value.trim();
-            if(!text) return;
-
-            const currentNick = localStorage.getItem('chat_nick');
-            const currentEmail = localStorage.getItem('chat_email');
-
-            try {
-                await addDoc(collection(db, "chat_messages"), {
-                    nickname: currentNick,
-                    email: currentEmail,
-                    text: text,
-                    timestamp: serverTimestamp()
-                });
-                document.getElementById('msg-text').value = "";
-            } catch (e) {
-                alert("Ошибка при отправке: " + e.message);
-            }
-        };
-
-        // Чтение в реальном времени (onSnapshot)
-        function loadMessages() {
-            const q = query(collection(db, "chat_messages"), orderBy("timestamp", "desc"));
-            onSnapshot(q, (snapshot) => {
-                const feed = document.getElementById('feed');
-                feed.innerHTML = "";
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const time = data.timestamp?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || '...';
-                    feed.innerHTML += `
-                        <div class="post">
-                            <span class="time">${time}</span>
-                            <span class="author">${data.nickname}</span>
-                            <p style="margin-top: 8px;">${data.text}</p>
-                        </div>
-                    `;
-                });
-            });
-        }
-    </script>
+        // Запускаем автоматическое обновление данных каждые 5 секунд 
+        setInterval(fetchGroup, 5000); [cite: 27, 28]
+    </script>
 </body>
 </html>
