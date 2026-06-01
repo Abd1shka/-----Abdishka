@@ -35,6 +35,9 @@
             font-size: 15px;
             color: #333;
             margin-bottom: 16px;
+            padding: 8px;
+            background: #f0f4f8;
+            border-radius: 6px;
         }
         .btn-grid {
             display: grid;
@@ -57,13 +60,11 @@
         .btn:active {
             transform: scale(0.98);
         }
-        /* Цвета кнопок из примера */
         .btn-green { background-color: #28a745; color: white; }
         .btn-yellow { background-color: #ffc107; color: black; }
         .btn-teal { background-color: #17a2b8; color: white; }
         .btn-grey { background-color: #6c757d; color: white; }
 
-        /* Стили списка группы */
         .user-item {
             display: flex;
             align-items: center;
@@ -95,76 +96,98 @@
         <h2>Мой профиль</h2>
         <div id="myInfo">Загрузка профиля...</div>
         <div class="btn-grid">
-            <button class="btn btn-green" onclick="changeStatus('📚 Учусь', '#28a745')">📚 Учусь</button>
-            <button class="btn btn-yellow" onclick="changeStatus('☕ Кофе', '#ffc107')">☕ Кофе</button>
-            <button class="btn btn-teal" onclick="changeStatus('🎮 В игре', '#17a2b8')">🎮 В игре</button>
-            <button class="btn btn-grey" onclick="changeStatus('🏠 Дома', '#6c757d')">🏠 Дома</button>
+            <button class="btn btn-green" onclick="changeStatus('📚 Учусь')">📚 Учусь</button>
+            <button class="btn btn-yellow" onclick="changeStatus('☕ Кофе')">☕ Кофе</button>
+            <button class="btn btn-teal" onclick="changeStatus('🎮 В игре')">🎮 В игре</button>
+            <button class="btn btn-grey" onclick="changeStatus('🏠 Дома')">🏠 Дома</button>
         </div>
     </div>
 
     <div class="card">
         <h2>Монитор группы</h2>
-        <div id="groupList">
-            </div>
+        <div id="groupList">Загрузка группы...</div>
     </div>
 
     <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm' [cite: 27, 28]
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-        // ВАЖНО: Замените эти данные на ваши собственные ключи из настроек Supabase 
-        const URL = 'https://supabase.com/dashboard/project/uvwbzrgqpexcinsdzgem/editor/33658?schema=public'; [cite: 27, 28]
-        const KEY = 'sb_publishable_9pjLoiR04_n2beuU9r_IUQ_vre2CbJA'; [cite: 27, 28]
-        const supabase = createClient(URL, KEY); [cite: 27, 28]
+        // ИСПРАВЛЕНО: Теперь тут правильный адрес API вашего проекта
+        const URL = 'https://uvwbzrgqpexcinsdzgem.supabase.co'; 
+        const KEY = 'sb_publishable_9pjLoiR04_n2beuU9r_IUQ_vre2CbJA'; 
+        const supabase = createClient(URL, KEY); 
 
-        // ВАЖНО: Вставьте сюда ваш длинный id, скопированный из таблицы profiles [cite: 13, 27, 28]
-        const MY_ID = '{"idx":0,"id":"e05b34b3-12d9-44e0-9b65-8e94949d7cf6","user name":"Abdi","status":"Online"}'; [cite: 27, 28]
+        // ИСПРАВЛЕНО: Извлечен чистый ID из вашей JSON-строки
+        const MY_ID = 'e05b34b3-12d9-44e0-9b65-8e94949d7cf6'; 
 
-        // Функция смены статуса (доступна глобально через объект window) 
-        window.changeStatus = async (text, color) => {
-            const { error } = await supabase [cite: 27, 28]
-                .from('profiles') [cite: 27, 28]
-                .update({ status: text, color: color }) // Меняем текст статуса и цвет точки 
-                .eq('id', MY_ID); [cite: 27, 28]
+        // Функция определения цвета по тексту статуса (чтобы не ломать базу данных лишними колонками)
+        function getColorByStatus(status) {
+            if (!status) return '#ccc';
+            if (status.includes('Учусь')) return '#28a745';
+            if (status.includes('Кофе')) return '#ffc107';
+            if (status.includes('В игре')) return '#17a2b8';
+            if (status.includes('Дома')) return '#6c757d';
+            return '#ccc';
+        }
+
+        // Функция смены статуса
+        window.changeStatus = async (text) => { 
+            const { error } = await supabase 
+                .from('profiles') 
+                .update({ status: text }) // Обновляем только статус
+                .eq('id', MY_ID); 
 
             if (error) {
-                alert("Ошибка! Проверьте RLS политики в Supabase."); [cite: 27, 28]
-                console.error(error); [cite: 27, 28]
+                alert("Ошибка! Проверьте, включены ли RLS политики UPDATE в Supabase."); 
+                console.error(error); 
             } else {
-                fetchGroup(); // Сразу обновляем интерфейс локально 
+                fetchGroup(); // Сразу обновляем экран
             }
         };
 
         // Функция получения списка всей группы 
         async function fetchGroup() {
-            const { data, error } = await supabase [cite: 27, 28]
-                .from('profiles') [cite: 27, 28]
-                .select('*') [cite: 27, 28]
-                .order('username', { ascending: true }); // Сортировка по алфавиту 
+            const { data, error } = await supabase 
+                .from('profiles') 
+                .select('*') 
+                .order('username', { ascending: true }); 
 
-            if (error) return console.error(error); [cite: 27, 28]
+            if (error) {
+                console.error("Ошибка получения данных:", error);
+                document.getElementById('groupList').innerText = "Ошибка загрузки данных.";
+                return;
+            }
 
             // Рендеринг элементов списка
-            const list = document.getElementById('groupList'); [cite: 27, 28]
-            list.innerHTML = data.map(user => `
-                <div class="user-item">
-                    <div class="status-dot" style="background: ${user.color || '#ccc'}"></div>
-                    <div style="flex-grow: 1;">
-                        <strong>${user.username}</strong><br>
-                        <small style="color: #666;">${user.status || 'Статус не задан'}</small>
+            const list = document.getElementById('groupList'); 
+            list.innerHTML = data.map(user => {
+                // Определяем цвет на лету в зависимости от того, что написано в статусе
+                const dotColor = getColorByStatus(user.status);
+                
+                return `
+                    <div class="user-item">
+                        <div class="status-dot" style="background: ${dotColor}"></div>
+                        <div style="flex-grow: 1;">
+                            <strong>${user.username || 'Без имени'}</strong><br>
+                            <small style="color: #666;">${user.status || 'Статус не задан'}</small>
+                        </div>
                     </div>
-                </div>
-            `).join(''); [cite: 27, 28]
+                `;
+            }).join(''); 
 
             // Обновление приветствия в верхней карточке "Мой профиль"
-            const me = data.find(u => u.id === MY_ID); [cite: 27, 28]
-            if (me) document.getElementById('myInfo').innerText = `Вы зашли как: ${me.username}`; [cite: 27, 28]
+            const me = data.find(u => u.id === MY_ID); 
+            if (me) {
+                document.getElementById('myInfo').innerHTML = `Вы зашли как: <strong>${me.username}</strong><br>Текущий статус: ${me.status || 'Не установлен'}`; 
+            } else {
+                document.getElementById('myInfo').innerHTML = `<span style="color:red;">Внимание: Пользователь с вашим ID не найден в таблице profiles! Проверьте Insert Row.</span>`;
+            }
         }
 
-        // Вызываем функцию один раз при загрузке страницы 
+        // Запуск при загрузке
         fetchGroup();
 
-        // Запускаем автоматическое обновление данных каждые 5 секунд 
-        setInterval(fetchGroup, 5000); [cite: 27, 28]
+        // Автообновление каждые 5 секунд 
+        setInterval(fetchGroup, 5000); 
     </script>
 </body>
 </html>
