@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Cloud Chat — Simple Login</title>
+    <title>Cloud Chat — Simple Login (Supabase)</title>
     <style>
         body { font-family: 'Inter', sans-serif; background: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
         .container { width: 100%; max-width: 500px; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
@@ -82,7 +82,6 @@
     </div>
 
     <div id="chat-section" class="hidden">
-        <!-- Монитор статусов -->
         <div class="status-monitor">
             <h3>📊 Монитор статусов</h3>
             <div class="user-count">
@@ -107,72 +106,66 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
-        import { 
-            getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, setDoc, deleteDoc, where 
-        } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+        // Импортируем Supabase JS Client через ESM CDN
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-        // ВАШИ КЛЮЧИ
-        const firebaseConfig = {
-            apiKey: "AIzaSyBgUuXR8Txafc_qA-rpdSzKn3326SIfxsHU",
-            authDomain: "qazaq-a872e.firebaseapp.com",
-            projectId: "qazaq-a872e",
-            storageBucket: "qazaq-a872e.firebasestorage.app",
-            messagingSenderId: "47025480090",
-            appId: "1:47025480090:web:3dd74ff29bc0149f39a23"
-        };
+        // ВАШИ КЛЮЧИ SUPABASE
+        const SUPABASE_URL = "https://YOUR_PROJECT_ID.supabase.co"; 
+        const SUPABASE_ANON_KEY = "YOUR_ANON_KEY";
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // --- УПРАВЛЕНИЕ СТАТУСАМИ ОНЛАЙН ---
-        let currentUserDocRef = null;
+        let currentUserId = null;
         let heartbeatInterval = null;
+        let messagesChannel = null;
+        let onlineChannel = null;
 
         // Функция установки статуса онлайн
         async function setUserOnline(nickname, email) {
             try {
-                const userId = nickname.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-                currentUserDocRef = doc(db, "online_users", userId);
+                currentUserId = nickname.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
                 
-                await setDoc(currentUserDocRef, {
+                await supabase.from('online_users').upsert({
+                    id: currentUserId,
                     nickname: nickname,
                     email: email,
-                    lastSeen: serverTimestamp(),
+                    last_seen: new Date().toISOString(),
                     status: 'online'
                 });
                 
                 // Запускаем heartbeat для поддержания статуса онлайн
-                startHeartbeat(userId, nickname, email);
+                startHeartbeat(nickname, email);
             } catch (e) {
                 console.error("Ошибка установки статуса онлайн:", e);
             }
         }
 
-        // Heartbeat для обновления временной метки
-        function startHeartbeat(userId, nickname, email) {
+        // Heartbeat для обновления временной метки каждые 30 секунд
+        function startHeartbeat(nickname, email) {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             
             heartbeatInterval = setInterval(async () => {
                 try {
-                    const userRef = doc(db, "online_users", userId);
-                    await setDoc(userRef, {
+                    if (!currentUserId) return;
+                    await supabase.from('online_users').upsert({
+                        id: currentUserId,
                         nickname: nickname,
                         email: email,
-                        lastSeen: serverTimestamp(),
+                        last_seen: new Date().toISOString(),
                         status: 'online'
-                    }, { merge: true });
+                    });
                 } catch (e) {
                     console.error("Ошибка heartbeat:", e);
                 }
-            }, 30000); // Обновление каждые 30 секунд
+            }, 30000);
         }
 
         // Функция выхода из системы
         async function setUserOffline() {
-            if (currentUserDocRef) {
+            if (currentUserId) {
                 try {
-                    await deleteDoc(currentUserDocRef);
+                    await supabase.from('online_users').delete().eq('id', currentUserId);
                 } catch (e) {
                     console.error("Ошибка удаления статуса онлайн:", e);
                 }
@@ -181,68 +174,75 @@
                 clearInterval(heartbeatInterval);
                 heartbeatInterval = null;
             }
-            currentUserDocRef = null;
-        }
-
-        // Мониторинг онлайн пользователей
-        function monitorOnlineUsers() {
-            const onlineUsersCollection = collection(db, "online_users");
-            const q = query(onlineUsersCollection, where("status", "==", "online"));
+            currentUserId = null;
             
-            onSnapshot(q, (snapshot) => {
-                const usersList = document.getElementById('online-users-list');
-                const onlineCount = document.getElementById('online-count');
-                const currentNick = localStorage.getItem('chat_nick');
-                
-                // Фильтруем старые записи (старше 1 минуты)
-                const now = new Date();
-                const activeUsers = [];
-                
-                snapshot.forEach((doc) => {
-                    const userData = doc.data();
-                    const lastSeen = userData.lastSeen?.toDate();
-                    
-                    if (lastSeen) {
-                        const diffSeconds = (now - lastSeen) / 1000;
-                        if (diffSeconds < 60) { // Пользователь активен в течение последней минуты
-                            activeUsers.push(userData);
-                        }
-                    }
-                });
-                
-                // Обновляем счетчик
-                onlineCount.textContent = activeUsers.length;
-                
-                // Отображаем список онлайн пользователей
-                if (activeUsers.length === 0) {
-                    usersList.innerHTML = '<div class="no-users">Нет пользователей онлайн</div>';
-                } else {
-                    usersList.innerHTML = activeUsers.map(user => `
-                        <div class="online-user">
-                            <span class="online-dot"></span>
-                            ${user.nickname}${user.nickname === currentNick ? ' (вы)' : ''}
-                        </div>
-                    `).join('');
-                }
-            });
+            // Отписываемся от каналов при выходе
+            if (messagesChannel) supabase.removeChannel(messagesChannel);
+            if (onlineChannel) supabase.removeChannel(onlineChannel);
         }
 
-        // Обработка закрытия страницы
-        window.addEventListener('beforeunload', async () => {
-            await setUserOffline();
-        });
+        // Получение и рендер списка активных юзеров
+        async function fetchAndRenderOnlineUsers() {
+            const { data: users, error } = await supabase
+                .from('online_users')
+                .select('*')
+                .eq('status', 'online');
 
-        // Обработка ухода со страницы
-        window.addEventListener('pagehide', async () => {
-            await setUserOffline();
-        });
+            if (error) {
+                console.error("Ошибка получения пользователей:", error);
+                return;
+            }
+
+            const usersList = document.getElementById('online-users-list');
+            const onlineCount = document.getElementById('online-count');
+            const currentNick = localStorage.getItem('chat_nick');
+            
+            const now = new Date();
+            // Фильтруем записи старше 1 минуты на стороне клиента
+            const activeUsers = users.filter(user => {
+                if (!user.last_seen) return false;
+                const lastSeenDate = new Date(user.last_seen);
+                const diffSeconds = (now - lastSeenDate) / 1000;
+                return diffSeconds < 60; 
+            });
+
+            onlineCount.textContent = activeUsers.length;
+
+            if (activeUsers.length === 0) {
+                usersList.innerHTML = '<div class="no-users">Нет пользователей онлайн</div>';
+            } else {
+                usersList.innerHTML = activeUsers.map(user => `
+                    <div class="online-user">
+                        <span class="online-dot"></span>
+                        ${user.nickname}${user.nickname === currentNick ? ' (вы)' : ''}
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Мониторинг онлайн пользователей в реальном времени
+        function monitorOnlineUsers() {
+            fetchAndRenderOnlineUsers();
+
+            if (onlineChannel) supabase.removeChannel(onlineChannel);
+
+            onlineChannel = supabase
+                .channel('public:online_users')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'online_users' }, () => {
+                    fetchAndRenderOnlineUsers();
+                })
+                .subscribe();
+        }
+
+        // Обработка закрытия/ухода со страницы
+        window.addEventListener('beforeunload', () => { setUserOffline(); });
+        window.addEventListener('pagehide', () => { setUserOffline(); });
 
         // --- УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ И ВХОДОМ ---
         const authSec = document.getElementById('auth-section');
         const chatSec = document.getElementById('chat-section');
         const nickDisplay = document.getElementById('current-user-display');
 
-        // Проверяем, есть ли уже сохраненный пользователь при загрузке страницы
         async function checkLogin() {
             const savedNick = localStorage.getItem('chat_nick');
             if (savedNick) {
@@ -271,7 +271,6 @@
                 return;
             }
 
-            // Сохраняем в память браузера
             localStorage.setItem('chat_nick', nick);
             localStorage.setItem('chat_email', email);
             await checkLogin();
@@ -290,7 +289,7 @@
 
         // --- ЛОГИКА ЧАТА ---
 
-        // Отправка
+        // Отправка сообщения
         document.getElementById('sendBtn').onclick = async () => {
             const text = document.getElementById('msg-text').value.trim();
             if(!text) return;
@@ -298,37 +297,59 @@
             const currentNick = localStorage.getItem('chat_nick');
             const currentEmail = localStorage.getItem('chat_email');
 
-            try {
-                await addDoc(collection(db, "chat_messages"), {
-                    nickname: currentNick,
-                    email: currentEmail,
-                    text: text,
-                    timestamp: serverTimestamp()
-                });
+            const { error } = await supabase.from('chat_messages').insert([
+                { nickname: currentNick, email: currentEmail, text: text }
+            ]);
+
+            if (error) {
+                alert("Ошибка при отправке: " + error.message);
+            } else {
                 document.getElementById('msg-text').value = "";
-            } catch (e) {
-                alert("Ошибка при отправке: " + e.message);
             }
         };
 
-        // Чтение в реальном времени (onSnapshot)
-        function loadMessages() {
-            const q = query(collection(db, "chat_messages"), orderBy("timestamp", "desc"));
-            onSnapshot(q, (snapshot) => {
-                const feed = document.getElementById('feed');
-                feed.innerHTML = "";
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const time = data.timestamp?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || '...';
-                    feed.innerHTML += `
-                        <div class="post">
-                            <span class="time">${time}</span>
-                            <span class="author">${data.nickname}</span>
-                            <p style="margin-top: 8px;">${data.text}</p>
-                        </div>
-                    `;
-                });
+        // Первоначальный рендер сообщений
+        async function fetchAndRenderMessages() {
+            const { data: messages, error } = await supabase
+                .from('chat_messages')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error("Ошибка загрузки сообщений:", error);
+                return;
+            }
+
+            const feed = document.getElementById('feed');
+            feed.innerHTML = "";
+            
+            messages.forEach((data) => {
+                const time = data.created_at 
+                    ? new Date(data.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
+                    : '...';
+                
+                feed.innerHTML += `
+                    <div class="post">
+                        <span class="time">${time}</span>
+                        <span class="author">${data.nickname}</span>
+                        <p style="margin-top: 8px;">${data.text}</p>
+                    </div>
+                `;
             });
+        }
+
+        // Чтение сообщений и подписка в реальном времени
+        function loadMessages() {
+            fetchAndRenderMessages();
+
+            if (messagesChannel) supabase.removeChannel(messagesChannel);
+
+            messagesChannel = supabase
+                .channel('public:chat_messages')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, () => {
+                    fetchAndRenderMessages();
+                })
+                .subscribe();
         }
     </script>
 </body>
