@@ -35,9 +35,10 @@
             font-size: 15px;
             color: #333;
             margin-bottom: 16px;
-            padding: 8px;
+            padding: 10px;
             background: #f0f4f8;
-            border-radius: 6px;
+            border-radius: 8px;
+            line-height: 1.4;
         }
         .btn-grid {
             display: grid;
@@ -105,21 +106,21 @@
 
     <div class="card">
         <h2>Монитор группы</h2>
-        <div id="groupList">Загрузка группы...</div>
+        <div id="groupList">Загрузка списка группы...</div>
     </div>
 
     <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm' [cite: 27, 28]
 
-        // ИСПРАВЛЕНО: Теперь тут правильный адрес API вашего проекта
+        // Подключение к ВАШЕМУ личному проекту MyFirstSQLApp
         const URL = 'https://uvwbzrgqpexcinsdzgem.supabase.co'; 
         const KEY = 'sb_publishable_9pjLoiR04_n2beuU9r_IUQ_vre2CbJA'; 
-        const supabase = createClient(URL, KEY); 
+        const supabase = createClient(URL, KEY); [cite: 27, 28]
 
-        // ИСПРАВЛЕНО: Извлечен чистый ID из вашей JSON-строки
+        // Ваш личный чистый ID из таблицы profiles
         const MY_ID = 'e05b34b3-12d9-44e0-9b65-8e94949d7cf6'; 
 
-        // Функция определения цвета по тексту статуса (чтобы не ломать базу данных лишними колонками)
+        // Функция автоматического подбора цвета точки на основе текста статуса
         function getColorByStatus(status) {
             if (!status) return '#ccc';
             if (status.includes('Учусь')) return '#28a745';
@@ -129,65 +130,66 @@
             return '#ccc';
         }
 
-        // Функция смены статуса
+        // Функция изменения статуса
         window.changeStatus = async (text) => { 
-            const { error } = await supabase 
-                .from('profiles') 
-                .update({ status: text }) // Обновляем только статус
-                .eq('id', MY_ID); 
+            const { error } = await supabase [cite: 27, 28]
+                .from('profiles') [cite: 27, 28]
+                .update({ status: text }) // ИСПРАВЛЕНО: убрано несуществующее поле color
+                .eq('id', MY_ID); [cite: 27, 28]
 
             if (error) {
-                alert("Ошибка! Проверьте, включены ли RLS политики UPDATE в Supabase."); 
-                console.error(error); 
+                alert("Ошибка обновления статуса! Проверьте RLS политику UPDATE в Supabase."); [cite: 27, 28]
+                console.error(error); [cite: 27, 28]
             } else {
-                fetchGroup(); // Сразу обновляем экран
+                fetchGroup(); // Сразу обновляем данные на экране
             }
         };
 
-        // Функция получения списка всей группы 
+        // Функция получения списка участников
         async function fetchGroup() {
-            const { data, error } = await supabase 
-                .from('profiles') 
-                .select('*') 
-                .order('username', { ascending: true }); 
+            const { data, error } = await supabase [cite: 27, 28]
+                .from('profiles') [cite: 27, 28]
+                .select('*'); [cite: 27, 28]
 
             if (error) {
-                console.error("Ошибка получения данных:", error);
-                document.getElementById('groupList').innerText = "Ошибка загрузки данных.";
+                console.error("Ошибка Supabase:", error);
+                document.getElementById('groupList').innerText = "Ошибка загрузки данных. Проверьте RLS политики.";
                 return;
             }
 
-            // Рендеринг элементов списка
-            const list = document.getElementById('groupList'); 
+            // Вывод списка группы
+            const list = document.getElementById('groupList'); [cite: 27, 28]
             list.innerHTML = data.map(user => {
-                // Определяем цвет на лету в зависимости от того, что написано в статусе
                 const dotColor = getColorByStatus(user.status);
+                // Подстраховка на случай, если колонка в БД написана с пробелом: 'user name'
+                const currentUsername = user.username || user['user name'] || 'Без имени';
                 
                 return `
                     <div class="user-item">
                         <div class="status-dot" style="background: ${dotColor}"></div>
                         <div style="flex-grow: 1;">
-                            <strong>${user.username || 'Без имени'}</strong><br>
+                            <strong>${currentUsername}</strong><br>
                             <small style="color: #666;">${user.status || 'Статус не задан'}</small>
                         </div>
                     </div>
                 `;
-            }).join(''); 
+            }).join(''); [cite: 27, 28]
 
-            // Обновление приветствия в верхней карточке "Мой профиль"
-            const me = data.find(u => u.id === MY_ID); 
+            // Вывод информации о вашем профиле в верхней карточке
+            const me = data.find(u => u.id === MY_ID); [cite: 27, 28]
             if (me) {
-                document.getElementById('myInfo').innerHTML = `Вы зашли как: <strong>${me.username}</strong><br>Текущий статус: ${me.status || 'Не установлен'}`; 
+                const myName = me.username || me['user name'] || 'Abdi';
+                document.getElementById('myInfo').innerHTML = `Вы зашли как: <strong>${myName}</strong><br>Текущий статус: ${me.status || 'Не установлен'}`; [cite: 27, 28]
             } else {
-                document.getElementById('myInfo').innerHTML = `<span style="color:red;">Внимание: Пользователь с вашим ID не найден в таблице profiles! Проверьте Insert Row.</span>`;
+                document.getElementById('myInfo').innerHTML = `<span style="color: red; font-weight: bold;">Пользователь с вашим ID не найден в вашей таблице profiles! Проверьте вкладку Table Editor.</span>`;
             }
         }
 
-        // Запуск при загрузке
+        // Первый запуск при открытии страницы
         fetchGroup();
 
-        // Автообновление каждые 5 секунд 
-        setInterval(fetchGroup, 5000); 
+        // Автоматическое обновление каждые 5 секунд
+        setInterval(fetchGroup, 5000); [cite: 27, 28]
     </script>
 </body>
 </html>
