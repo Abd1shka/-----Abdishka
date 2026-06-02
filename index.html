@@ -3,193 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Монитор статусов на Supabase</title>
+    <title>Монитор статусов</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #eef2f5;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 40px 20px;
-            margin: 0;
-        }
-        .card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            padding: 24px;
-            width: 100%;
-            max-width: 500px;
-            margin-bottom: 24px;
-            box-sizing: border-box;
-        }
-        h2 {
-            margin-top: 0;
-            font-size: 20px;
-            font-weight: 700;
-            color: #000;
-            margin-bottom: 16px;
-        }
-        #myInfo {
-            font-size: 15px;
-            color: #333;
-            margin-bottom: 16px;
-            padding: 10px;
-            background: #f0f4f8;
-            border-radius: 8px;
-            line-height: 1.4;
-        }
-        .btn-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-        .btn {
-            border: 1.5px solid #000;
-            border-radius: 8px;
-            padding: 12px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            transition: transform 0.1s, opacity 0.2s;
-        }
-        .btn:active {
-            transform: scale(0.98);
-        }
-        .btn-green { background-color: #28a745; color: white; }
-        .btn-yellow { background-color: #ffc107; color: black; }
-        .btn-teal { background-color: #17a2b8; color: white; }
-        .btn-grey { background-color: #6c757d; color: white; }
-
-        .user-item {
-            display: flex;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .user-item:last-child {
-            border-bottom: none;
-        }
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 16px;
-            flex-shrink: 0;
-        }
-        strong {
-            font-size: 16px;
-            color: #111;
-        }
-        small {
-            font-size: 13px;
-        }
+        body { font-family: system-ui, -apple-system, sans-serif; }
     </style>
 </head>
-<body>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4 space-y-6">
 
-    <div class="card">
-        <h2>Мой профиль</h2>
-        <div id="myInfo">Загрузка профиля...</div>
-        <div class="btn-grid">
-            <button class="btn btn-green" onclick="changeStatus('📚 Учусь')">📚 Учусь</button>
-            <button class="btn btn-yellow" onclick="changeStatus('☕ Кофе')">☕ Кофе</button>
-            <button class="btn btn-teal" onclick="changeStatus('🎮 В игре')">🎮 В игре</button>
-            <button class="btn btn-grey" onclick="changeStatus('🏠 Дома')">🏠 Дома</button>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 w-full max-w-xl">
+        <h2 class="text-xl font-bold text-gray-900 mb-2">Мой профиль</h2>
+        <p class="text-gray-600 mb-4">Вы зашли как: <span id="current-user" class="font-semibold text-gray-800">Загрузка...</span></p>
+        
+        <div class="grid grid-cols-2 gap-3">
+            <button onclick="changeStatus('📚 Учусь', '#1e9242')" 
+                    class="bg-[#1e9242] hover:opacity-90 text-white font-medium py-3 px-4 rounded-xl shadow-sm border border-black/10 cursor-pointer transition">
+                📚 Учусь
+            </button>
+            <button onclick="changeStatus('☕ Кофе-брейк', '#ffcc00')" 
+                    class="bg-[#ffcc00] hover:opacity-90 text-black font-medium py-3 px-4 rounded-xl shadow-sm border border-black/10 cursor-pointer transition">
+                ☕ Кофе
+            </button>
+            <button onclick="changeStatus('🎮 В игре', '#179cb3')" 
+                    class="bg-[#179cb3] hover:opacity-90 text-white font-medium py-3 px-4 rounded-xl shadow-sm border border-black/10 cursor-pointer transition">
+                🎮 В игре
+            </button>
+            <button onclick="changeStatus('🏠 Дома', '#64748b')" 
+                    class="bg-[#64748b] hover:opacity-90 text-white font-medium py-3 px-4 rounded-xl shadow-sm border border-black/10 cursor-pointer transition">
+                🏠 Дома
+            </button>
         </div>
     </div>
 
-    <div class="card">
-        <h2>Монитор группы</h2>
-        <div id="groupList">Загрузка списка группы...</div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 w-full max-w-xl">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Монитор группы</h2>
+        
+        <div id="group-container" class="space-y-4">
+            <p class="text-gray-400 text-sm">Загрузка пользователей...</p>
+        </div>
     </div>
 
     <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm' [cite: 27, 28]
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-        // Подключение к ВАШЕМУ личному проекту MyFirstSQLApp
-        const URL = 'https://uvwbzrgqpexcinsdzgem.supabase.co/rest/v1/'; 
+        // Твои личные данные подключения, которые ты скинул:
+        const URL = 'https://uvwbzrgqpexcinsdzgem.supabase.co';
         const KEY = 'sb_publishable_9pjLoiR04_n2beuU9r_IUQ_vre2CbJA'; 
-        const supabase = createClient(URL, KEY); [cite: 27, 28]
+        const supabase = createClient(URL, KEY);
 
-        // Ваш личный чистый ID из таблицы profiles
+        // Твой персональный ID из таблицы Abdi:
         const MY_ID = 'e05b34b3-12d9-44e0-9b65-8e94949d7cf6'; 
 
-        // Функция автоматического подбора цвета точки на основе текста статуса
-        function getColorByStatus(status) {
-            if (!status) return '#ccc';
-            if (status.includes('Учусь')) return '#28a745';
-            if (status.includes('Кофе')) return '#ffc107';
-            if (status.includes('В игре')) return '#17a2b8';
-            if (status.includes('Дома')) return '#6c757d';
-            return '#ccc';
-        }
-
         // Функция изменения статуса
-        window.changeStatus = async (text) => { 
-            const { error } = await supabase [cite: 27, 28]
-                .from('profiles') [cite: 27, 28]
-                .update({ status: text }) // ИСПРАВЛЕНО: убрано несуществующее поле color
-                .eq('id', MY_ID); [cite: 27, 28]
+        window.changeStatus = async (text, color) => {
+            const { error } = await supabase
+                .from('Roman') // Имя твоей таблицы из Supabase
+                .update({ status: text, color: color })
+                .eq('id', MY_ID);
 
             if (error) {
-                alert("Ошибка обновления статуса! Проверьте RLS политику UPDATE в Supabase."); [cite: 27, 28]
-                console.error(error); [cite: 27, 28]
+                alert("Ошибка! Проверьте RLS политики в Supabase.");
+                console.error(error);
             } else {
-                fetchGroup(); // Сразу обновляем данные на экране
+                fetchGroup(); 
             }
         };
 
-        // Функция получения списка участников
+        // Функция получения данных всех участников
         async function fetchGroup() {
-            const { data, error } = await supabase [cite: 27, 28]
-                .from('profiles') [cite: 27, 28]
-                .select('*'); [cite: 27, 28]
+            const { data, error } = await supabase
+                .from('Roman') // Имя твоей таблицы из Supabase
+                .select('*')
+                .order('username', { ascending: true });
 
             if (error) {
-                console.error("Ошибка Supabase:", error);
-                document.getElementById('groupList').innerText = "Ошибка загрузки данных. Проверьте RLS политики.";
+                console.error("Ошибка получения данных:", error);
                 return;
             }
 
-            // Вывод списка группы
-            const list = document.getElementById('groupList'); [cite: 27, 28]
-            list.innerHTML = data.map(user => {
-                const dotColor = getColorByStatus(user.status);
-                // Подстраховка на случай, если колонка в БД написана с пробелом: 'user name'
-                const currentUsername = user.username || user['user name'] || 'Без имени';
-                
-                return `
-                    <div class="user-item">
-                        <div class="status-dot" style="background: ${dotColor}"></div>
-                        <div style="flex-grow: 1;">
-                            <strong>${currentUsername}</strong><br>
-                            <small style="color: #666;">${user.status || 'Статус не задан'}</small>
-                        </div>
-                    </div>
-                `;
-            }).join(''); [cite: 27, 28]
+            const container = document.getElementById('group-container');
+            container.innerHTML = ''; 
 
-            // Вывод информации о вашем профиле в верхней карточке
-            const me = data.find(u => u.id === MY_ID); [cite: 27, 28]
-            if (me) {
-                const myName = me.username || me['user name'] || 'Abdi';
-                document.getElementById('myInfo').innerHTML = `Вы зашли как: <strong>${myName}</strong><br>Текущий статус: ${me.status || 'Не установлен'}`; [cite: 27, 28]
-            } else {
-                document.getElementById('myInfo').innerHTML = `<span style="color: red; font-weight: bold;">Пользователь с вашим ID не найден в вашей таблице profiles! Проверьте вкладку Table Editor.</span>`;
-            }
+            data.forEach(profile => {
+                if (profile.id === MY_ID) {
+                    document.getElementById('current-user').innerText = profile.username;
+                }
+const userRow = document.createElement('div');
+                userRow.className = "flex items-start space-x-3 pt-2 pb-2 border-b border-gray-100 last:border-0";
+                
+                userRow.innerHTML = 
+                    <span class="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style="background-color: ${profile.color || '#ccc'}"></span>
+                    <div>
+                        <div class="font-bold text-gray-950 text-base leading-tight">${profile.username}</div>
+                        <div class="text-sm text-gray-500 mt-0.5">${profile.status || 'Нет статуса'}</div>
+                    </div>
+                ;
+                container.appendChild(userRow);
+            });
         }
 
-        // Первый запуск при открытии страницы
+        // Запуск при старте страницы
         fetchGroup();
-
-        // Автоматическое обновление каждые 5 секунд
-        setInterval(fetchGroup, 5000); [cite: 27, 28]
     </script>
 </body>
 </html>
