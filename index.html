@@ -18,19 +18,19 @@
         <div class="grid grid-cols-2 gap-3">
             <button onclick="changeStatus('📚 Учусь', '#1e9242')" 
                     class="bg-[#1e9242] hover:opacity-90 text-white font-medium py-3 px-4 rounded-xl shadow-sm border border-black/10 cursor-pointer transition">
-                📚 Учусь
+                 📚 Учусь
             </button>
             <button onclick="changeStatus('☕ Кофе-брейк', '#ffcc00')" 
                     class="bg-[#ffcc00] hover:opacity-90 text-black font-medium py-3 px-4 rounded-xl shadow-sm border border-black/10 cursor-pointer transition">
-                ☕ Кофе
+                 ☕ Кофе
             </button>
             <button onclick="changeStatus('🎮 В игре', '#179cb3')" 
                     class="bg-[#179cb3] hover:opacity-90 text-white font-medium py-3 px-4 rounded-xl shadow-sm border border-black/10 cursor-pointer transition">
-                🎮 В игре
+                 🎮 В игре
             </button>
             <button onclick="changeStatus('🏠 Дома', '#64748b')" 
                     class="bg-[#64748b] hover:opacity-90 text-white font-medium py-3 px-4 rounded-xl shadow-sm border border-black/10 cursor-pointer transition">
-                🏠 Дома
+                 🏠 Дома
             </button>
         </div>
     </div>
@@ -44,26 +44,26 @@
     </div>
 
     <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm' [cite: 27, 28]
 
-        // Твои личные данные подключения, которые ты скинул:
-        const URL = 'https://uvwbzrgqpexcinsdzgem.supabase.co';
-        const KEY = 'sb_publishable_9pjLoiR04_n2beuU9r_IUQ_vre2CbJA'; 
-        const supabase = createClient(URL, KEY);
+        // Ваши личные данные подключения сохранены:
+        const URL = 'https://pkllhpwpyznbmirhwzec.supabase.co';
+        const KEY = 'sb_publishable_jh6KIEbCx9RI3QwrVU_EDQ_-ezVsgzC'; 
+        const supabase = createClient(URL, KEY); [cite: 27, 28]
 
-        // Твой персональный ID из таблицы Abdi:
-        const MY_ID = 'e05b34b3-12d9-44e0-9b65-8e94949d7cf6'; 
+        // Ваш персональный ID из таблицы Roman сохранен:
+        const MY_ID = '9a32646f-c9f4-49a6-8cca-98de1edf1d3d'; 
 
         // Функция изменения статуса
         window.changeStatus = async (text, color) => {
             const { error } = await supabase
-                .from('Roman') // Имя твоей таблицы из Supabase
+                .from('Roman') // Имя вашей таблицы
                 .update({ status: text, color: color })
                 .eq('id', MY_ID);
 
             if (error) {
-                alert("Ошибка! Проверьте RLS политики в Supabase.");
-                console.error(error);
+                alert("Ошибка! Проверьте RLS политики в Supabase."); [cite: 27, 28]
+                console.error(error); [cite: 27, 28]
             } else {
                 fetchGroup(); 
             }
@@ -72,38 +72,52 @@
         // Функция получения данных всех участников
         async function fetchGroup() {
             const { data, error } = await supabase
-                .from('Roman') // Имя твоей таблицы из Supabase
+                .from('Roman') // Имя вашей таблицы
                 .select('*')
-                .order('username', { ascending: true });
+                .order('username', { ascending: true }); [cite: 27, 28]
 
             if (error) {
                 console.error("Ошибка получения данных:", error);
+                document.getElementById('group-container').innerHTML = '<p class="text-red-500 text-sm">Ошибка загрузки. Проверьте RLS.</p>';
                 return;
             }
 
             const container = document.getElementById('group-container');
             container.innerHTML = ''; 
 
+            let meFound = false;
+
             data.forEach(profile => {
                 if (profile.id === MY_ID) {
-                    document.getElementById('current-user').innerText = profile.username;
+                    document.getElementById('current-user').innerText = profile.username || "Без имени";
+                    meFound = true;
                 }
-const userRow = document.createElement('div');
+
+                const userRow = document.createElement('div');
                 userRow.className = "flex items-start space-x-3 pt-2 pb-2 border-b border-gray-100 last:border-0";
                 
-                userRow.innerHTML = 
+                // ИСПРАВЛЕНО: Добавлены косые кавычки (``) для оформления строкового шаблона HTML
+                userRow.innerHTML = `
                     <span class="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style="background-color: ${profile.color || '#ccc'}"></span>
                     <div>
-                        <div class="font-bold text-gray-950 text-base leading-tight">${profile.username}</div>
+                        <div class="font-bold text-gray-950 text-base leading-tight">${profile.username || "Без имени"}</div>
                         <div class="text-sm text-gray-500 mt-0.5">${profile.status || 'Нет статуса'}</div>
                     </div>
-                ;
+                `;
                 container.appendChild(userRow);
             });
+
+            // Если ваш UUID не найден в базе, выводим предупреждение вместо бесконечной "Загрузки..."
+            if (!meFound) {
+                document.getElementById('current-user').innerHTML = '<span class="text-red-500">Пользователь с вашим ID не найден в таблице Roman!</span>';
+            }
         }
 
         // Запуск при старте страницы
         fetchGroup();
+
+        // Автоматическое обновление данных каждые 5 секунд для синхронизации в реальном времени [cite: 2]
+        setInterval(fetchGroup, 5000); [cite: 27, 28]
     </script>
 </body>
 </html>
